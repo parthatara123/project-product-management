@@ -1,5 +1,5 @@
 const UserModel = require("../models/userModel");
-const AWS = require("aws-sdk");
+const utility = require("../utilities/aws");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 
@@ -16,7 +16,7 @@ const isValidInput = function (object) {
 
 const isValidAddress = function (value) {
   if (typeof value === "undefined" || value === null) return false;
-  if (typeof value === "object" && Array.isArray(value) === false) return true;
+  if (typeof value === "object" && Array.isArray(value) === false && Object.keys(value).length > 0) return true;
   return false;
 };
 
@@ -41,44 +41,15 @@ const isValidPincode = function (value) {
   return false;
 };
 
-//**********************************File upload to AWS S3********************************************** */
-
-AWS.config.update({
-  accessKeyId: "AKIAY3L35MCRVFM24Q7U",
-  secretAccessKey: "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",
-  region: "ap-south-1",
-});
-let uploadFile = async (file) => {
-  return new Promise(function (resolve, reject) {
-    //this function will upload file to aws and return the link
-    let s3 = new AWS.S3({ apiVersion: "2006-03-01" }); //we will be using s3 service of aws
-
-    var uploadParams = {
-      ACL: "public-read",
-      Bucket: "classroom-training-bucket",
-      Key: "surajDubey/" + file.originalname,
-      Body: file.buffer,
-    };
-
-    s3.upload(uploadParams, function (err, data) {
-      if (err) {
-        return reject({ error: err });
-      }
-
-      console.log(" file uploaded succesfully ");
-      return resolve(data.Location);
-    });
-  });
-};
-
 //*********************************************USER REGISTRATION******************************************** */
 
 const userRegistration = async function (req, res) {
   try {
-    const requestBody = req.body;
+    const requestBody = {...req.body};
     const queryParams = req.query;
     const image = req.files;
     console.log(requestBody);
+    console.log(image)
 
     //no data is required from query params
     if (isValidInput(queryParams)) {
@@ -137,7 +108,7 @@ const userRegistration = async function (req, res) {
         .send({ status: false, message: "no profile image found" });
     }
 
-    const uploadedProfilePictureUrl = await uploadFile(image[0]);
+    const uploadedProfilePictureUrl = await utility.uploadFile(image[0]);
 
     if (!isValid(phone)) {
       return res
@@ -204,12 +175,12 @@ const userRegistration = async function (req, res) {
           });
         }
 
-        // if (!isValidPincode(pincode)) {
-        //   return res.status(400).send({
-        //     status: false,
-        //     message: "Shipping address: pin code is required like: 335659 ",
-        //   });
-        // }
+        if (!/\d{6}/.test(pincode)) {
+          return res.status(400).send({
+            status: false,
+            message: "Shipping address: pin code should be valid like: 335659 ",
+          });
+        }
       }
 
       if (!isValidAddress(billing)) {
@@ -219,7 +190,7 @@ const userRegistration = async function (req, res) {
       } else {
         const { street, city, pincode } = billing;
 
-        if (!isValid(street)) {
+        if (!isValid(street)) { 
           return res.status(400).send({
             status: false,
             message: "Billing address: street name is required ",
@@ -233,17 +204,16 @@ const userRegistration = async function (req, res) {
           });
         }
 
-        // if (!isValidPincode(pincode)) {
-        //   return res.status(400).send({
-        //     status: false,
-        //     message: "Billing address: pin code is required like: 335659 ",
-        //   });
-        // }
+        if (!/\d{6}/.test(pincode)) {
+          return res.status(400).send({
+            status: false,
+            message: "Billing address: pin code should be valid like: 335659 ",
+          });
+        }
       }
     }
 
-    console.log(typeof pincode);
-
+    // password encryption
     const salt = await bcrypt.genSalt(10);
     const encryptedPassword = await bcrypt.hash(password, salt);
 
@@ -311,15 +281,13 @@ const userLogin = async function (req, res) {
     }
 
     if (!isValidPassword(password)) {
-      return res
-        .status(400)
-        .send({
-          status: false,
-          message:
-            "Enter password of 8 to 15 characters and must contain one letter and digit ",
-        });
+      return res.status(400).send({
+        status: false,
+        message:
+          "Enter password of 8 to 15 characters and must contain one letter and digit ",
+      });
     }
-
+    // finding user by given email
     const userDetails = await UserModel.findOne({ email: userName });
 
     if (!userDetails) {
@@ -327,7 +295,7 @@ const userLogin = async function (req, res) {
         .status(404)
         .send({ status: false, message: "No user found by email" });
     }
-
+    // comparing hashed password and login password
     const isPasswordMatching = bcrypt.compare(password, userDetails.password);
 
     if (!isPasswordMatching) {
@@ -335,14 +303,15 @@ const userLogin = async function (req, res) {
         .status(400)
         .send({ status: false, message: "incorrect password" });
     }
-
+    // creating JWT token
     const payload = { userId: userDetails._id };
     const expiry = { expiresIn: "1800s" };
     const secretKey = "123451214654132466ASDFGwnweruhkwerbjhiHJKL!@#$%^&";
 
     const token = jwt.sign(payload, secretKey, expiry);
 
-    res.header("Authorization", "Bearer " + token);
+    // setting bearer token in response header
+    res.header("authorization", "Bearer " + token);
 
     const data = { userId: userDetails._id, token: token };
 
@@ -376,13 +345,11 @@ const profileDetails = async function (req, res) {
 
     const userProfile = await UserModel.findById(userId);
 
-    res
-      .status(200)
-      .send({
-        status: true,
-        message: "user profile details",
-        data: userProfile,
-      });
+    res.status(200).send({
+      status: true,
+      message: "user profile details",
+      data: userProfile,
+    });
   } catch (error) {
     res.status(500).send({ error: error.message });
   }
@@ -393,35 +360,36 @@ const profileDetails = async function (req, res) {
 const userProfileUpdate = async function (req, res) {
   try {
     const queryParams = req.query;
+
+    // creating deep copy of request body as [object: null-prototype]
     const requestBody = JSON.parse(JSON.stringify(req.body));
-    console.log(requestBody)
     const userId = req.params.userId;
     const image = req.files;
+
     //no data is required from query params
     if (isValidInput(queryParams)) {
       return res.status(404).send({ status: false, message: "Page not found" });
     }
 
-    // an empty objected created
+    // created an empty object. now will add properties that needs to be updated
     const updates = {};
 
     if (image && image.length > 0) {
-      const updatedProfileImageUrl = await uploadFile(image[0]);
+      const updatedProfileImageUrl = await utility.uploadFile(image[0]);
       updates["profileImage"] = updatedProfileImageUrl;
     }
 
+    // using destructuring then validating keys which are present in request body then adding them to updates object
     const { fname, lname, email, phone, address, password } = requestBody;
 
     if (requestBody.hasOwnProperty("fname")) {
       if (isValid(fname)) {
         updates["fname"] = fname.trim();
       } else {
-        return res
-          .status(400)
-          .send({
-            status: false,
-            message: "first name is required like: JOHN",
-          });
+        return res.status(400).send({
+          status: false,
+          message: "first name is required like: JOHN",
+        });
       }
     }
 
@@ -444,9 +412,8 @@ const userProfileUpdate = async function (req, res) {
             return res
               .status(400)
               .send({ status: false, message: "Email address already exist" });
-          } else {
-            updates["email"] = email.trim();
           }
+          updates["email"] = email.trim();
         } else {
           return res
             .status(400)
@@ -468,9 +435,8 @@ const userProfileUpdate = async function (req, res) {
             return res
               .status(400)
               .send({ status: false, message: "phone number already exist" });
-          } else {
-            updates["phone"] = phone.trim();
           }
+          updates["phone"] = phone.trim();
         } else {
           return res
             .status(400)
@@ -491,13 +457,11 @@ const userProfileUpdate = async function (req, res) {
 
           updates["password"] = encryptedPassword;
         } else {
-          return res
-            .status(400)
-            .send({
-              status: false,
-              message:
-                "Password should be of 8 to 15 characters and  must have 1 letter and 1 number",
-            });
+          return res.status(400).send({
+            status: false,
+            message:
+              "Password should be of 8 to 15 characters and  must have 1 letter and 1 number",
+          });
         }
       } else {
         return res
@@ -507,13 +471,10 @@ const userProfileUpdate = async function (req, res) {
     }
 
     if (requestBody.hasOwnProperty("address")) {
-       
-
       const { shipping, billing } = JSON.parse(address);
 
       if (JSON.parse(address).hasOwnProperty("shipping")) {
         const { street, city, pincode } = shipping;
-        console.log("shipping", shipping)
 
         if (shipping.hasOwnProperty("street")) {
           if (!isValid(street)) {
@@ -539,6 +500,13 @@ const userProfileUpdate = async function (req, res) {
         }
 
         if (shipping.hasOwnProperty("pincode")) {
+          if (!/\d{6}/.test(pincode)) {
+            return res.status(400).send({
+              status: false,
+              message:
+                "Shipping address: pin code should be valid like: 335659 ",
+            });
+          }
           updates["address.shipping.pincode"] = pincode.trim();
         }
       }
@@ -570,26 +538,30 @@ const userProfileUpdate = async function (req, res) {
         }
 
         if (billing.hasOwnProperty("pincode")) {
+          if (!/\d{6}/.test(pincode)) {
+            return res.status(400).send({
+              status: false,
+              message:
+                "Billing address: pin code should be valid like: 335659 ",
+            });
+          }
+
           updates["address.billing.pincode"] = pincode.trim();
         }
       }
     }
 
-    console.log(updates)
-
     const updatedProfile = await UserModel.findByIdAndUpdate(
-      {_id :userId},
+      { _id: userId },
       { $set: updates },
       { new: true }
     );
 
-    res
-      .status(200)
-      .send({
-        status: true,
-        message: "user profile updated",
-        data: updatedProfile,
-      });
+    res.status(200).send({
+      status: true,
+      message: "user profile updated",
+      data: updatedProfile,
+    });
   } catch (error) {
     res.status(500).send({ error: error.message });
   }
