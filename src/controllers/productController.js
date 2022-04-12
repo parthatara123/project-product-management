@@ -356,7 +356,11 @@ const getProduct = async function (req, res) {
         .send({ status: false, message: "Invalid product id" });
     }
 
-    const productById = await ProductModel.findById(productId);
+    const productById = await ProductModel.findOne({_id: productId, isDeleted:false, deletedAt: null});;
+
+    if(!productById){
+      return res.status(404).send({status: false, message: "No product found by this product id"})
+    }
 
     res
       .status(200)
@@ -372,17 +376,29 @@ const updateProductDetails = async function (req, res) {
   try {
     const queryParams = req.query;
     const requestBody = { ...req.body };
-    console.log(requestBody)
     const productId = req.params.productId;
+    const image = req.files
+
+
+
     if (!isValidIdType(productId)) {
       return res
         .status(400)
         .send({ status: false, message: "invalid product id" });
     }
 
+
     if (isValidInput(queryParams)) {
       return res.status(404).send({ status: false, message: "Page not found" });
     }
+
+    const productByProductId = await ProductModel.findOne({_id: productId, isDeleted:false, deletedAt: null})
+
+    if(!productByProductId){
+      return res.status(404).send({status: false, message: `No product found by this ${productId}`})
+    }
+
+    
 
     if (!isValidInput(requestBody)) {
       return res.status(400).send({ status: false, message: "Update data required" });
@@ -400,7 +416,14 @@ const updateProductDetails = async function (req, res) {
       installments,
     } = requestBody;
 
+
     const updates = { $set: {}, $addToSet: {} };
+    
+    if(image && image.length > 0){
+      const productImageUrl = await Utility.uploadFile(image[0])
+      updates["$set"]["productImage"] = productImageUrl
+    }
+
 
     if (requestBody.hasOwnProperty("title")) {
       if (!isValid(title)) {
@@ -425,6 +448,7 @@ const updateProductDetails = async function (req, res) {
       updates["$set"]["title"] = title.trim();
     }
 
+
     if (requestBody.hasOwnProperty("description")) {
       if (!isValid(description)) {
         return res
@@ -433,7 +457,8 @@ const updateProductDetails = async function (req, res) {
       }
       updates["$set"]["description"] = description.trim();
     }
-    console.log(price)
+
+
     if (requestBody.hasOwnProperty("price")) {
       
         if (!isValidNumber(price)) {
@@ -444,6 +469,7 @@ const updateProductDetails = async function (req, res) {
       updates["$set"]["price"] = price;
     }
 
+
     if (requestBody.hasOwnProperty("currencyId")) {
       if (!isValid(currencyId)) {
         return res
@@ -452,6 +478,7 @@ const updateProductDetails = async function (req, res) {
       }
       updates["$set"]["currencyId"] = currencyId.trim();
     }
+
 
     //CURRENCY ID VALIDATION IS PENDING
 
@@ -464,7 +491,76 @@ const updateProductDetails = async function (req, res) {
       updates["$set"]["currencyFormat"] = currencyFormat.trim();
     }
 
-    res.send({message: "sucess"})
+    
+    if (requestBody.hasOwnProperty("isFreeShipping")) {
+      if (!isValid(isFreeShipping)) {
+        return res
+          .status(400)
+          .send({ status: false, message: "Invalid FreeShipping" });
+      }
+      if(isFreeShipping == "true" || isFreeShipping == "false"){
+      updates["$set"]["isFreeShipping"] = isFreeShipping
+      
+    }else{
+      return res
+          .status(400)
+          .send({ status: false, message: "Invalid FreeShipping" });
+    }
+  }
+
+
+    if (requestBody.hasOwnProperty("style")) {
+      if (!isValid(style)) {
+        return res
+          .status(400)
+          .send({ status: false, message: "Invalid style" });
+      }
+      updates["$set"]["style"] = style
+    }
+
+
+    if (requestBody.hasOwnProperty("availableSizes")) {
+      availableSizes = JSON.parse(availableSizes)
+
+      if(Array.isArray(availableSizes)){
+        for (let i = 0; i < availableSizes.length; i++) {
+          const element = availableSizes[i];
+          
+          if (!["S", "XS", "M", "X", "L", "XXL", "XL"].includes(element)) {
+            return res
+              .status(400)
+              .send({
+                status: false,
+                message: `available sizes should be from:  S, XS, M, X, L, XXL, XL`,
+              });
+          }
+        }
+
+      }else{
+        return res
+          .status(400)
+          .send({ status: false, message: "Invalid availableSizes" });
+      }
+      updates["$addToSet"]["availableSizes"] = {$each: availableSizes}
+    }
+
+    if(requestBody.hasOwnProperty("installments")){
+      installments = Number(installments)
+      if(!isValidNumber(installments)){
+        return res.status(400).send({status: false, message: "invalid installments"})
+
+      }else{
+        updates["$set"]["installments"] = installments
+      }
+    }
+
+    const updatedProduct = await ProductModel.findOneAndUpdate(
+      {_id:productId},
+      updates,
+      {new:true}
+    )
+
+    res.status(200).send({status: true, message: "Product data updated successfully", data: updatedProduct})
 
   } catch (error) {
     res.status(500).send({ error: error.message });
@@ -472,9 +568,57 @@ const updateProductDetails = async function (req, res) {
 };
 
 
+
+
+
+//*************************************************************************************** */
+
+
+const deleteProduct = async function (req, res) {
+  try {
+    const productId = req.params.productId;
+    const queryParams = req.query;
+
+    if (isValidInput(queryParams)) {
+      return res.status(404).send({ status: false, message: "Page not found" });
+    }
+
+    if (!productId) {
+      return res
+        .status(400)
+        .send({
+          status: false,
+          message: "Invalid request, product id is required in path params",
+        });
+    }
+
+    if (!isValidIdType(productId)) {
+      return res
+        .status(400)
+        .send({ status: false, message: "Invalid product id" });
+    }
+
+    const productById = await ProductModel.findOne({_id: productId, isDeleted:false, deletedAt: null});
+
+      if(!productById){
+        return res.status(404).send({status: false, message: "No product found by this product id"})
+      }
+
+    const markDirty = await ProductModel.findOneAndUpdate({_id: productId}, {$set: {isDeleted:true, deletedAt: Date.now()}})
+    
+    res
+      .status(200)
+      .send({ status: true, message: "Product successfully deleted"});
+
+
+  } catch (error) {
+    res.status(500).send({ error: error.message });
+  }
+};
 module.exports = {
   registerProduct,
   filterProducts,
   getProduct,
   updateProductDetails,
+  deleteProduct
 };

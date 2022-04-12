@@ -8,7 +8,7 @@
 - In this project we will work feature wise. That means we pick one object like user, book, blog, etc at a time. We work through it's feature. The steps would be:
   1) We create it's model.
   2) We build it's APIs.
-  3) We test these APIs.
+  3) We test these APIs.z 
   4) We deploy these APIs.
   5) We integrate these APIs with frontend.
   6) We will repeat steps from Step 1 to Step 5 for each feature in this project.
