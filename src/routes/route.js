@@ -21,5 +21,7 @@ router.post('/products', ProductController.registerProduct )
 router.get('/products', ProductController.filterProducts)
 router.get('/products/:productId', ProductController.getProduct)
 router.put('/products/:productId', ProductController.updateProductDetails)
+router.delete('/products/:productId', ProductController.deleteProduct)
+
 
 module.exports = router

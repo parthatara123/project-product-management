@@ -16,7 +16,7 @@ const isValidInput = function (object) {
 const isValidNumber = function (value) {
   if (typeof value === "undefined" || value === null) return false;
   if (typeof value === "string" && Number(value) !== NaN) return true;
-  if(typeof value === "number") return true
+  if (typeof value === "number") return true;
   return false;
 };
 
@@ -27,6 +27,15 @@ const isValidPrice = function (price) {
 const isValidIdType = function (productId) {
   return mongoose.Types.ObjectId.isValid(productId);
 };
+
+const isValidCurrencyId = function(value){
+  let regexForCurrencyId = /\b(?:USD|AUD|BRL|GBP|CAD|CNY|DKK|AED|EUR|HKD|INR|MYR|MXN|NZD|PHP|SGD|THB|ARS|COP|CLP|PEN|VEF)\b/
+  return regexForCurrencyId.test(value)
+}
+
+const isValidCurrencyFormat = function(value){
+
+}
 
 //************************************************************************** */
 
@@ -84,11 +93,11 @@ const registerProduct = async function (req, res) {
         .send({ status: false, message: "Product description is required" });
     }
 
-    // if(!isValidNumber(price)) {
-    //     return res
-    //       .status(400)
-    //       .send({ status: false, message: "Product price is required" });
-    // }
+    if(!isValidNumber(price)) {
+        return res
+          .status(400)
+          .send({ status: false, message: "Product price is required" });
+    }
 
     if (!isValidPrice(Number(price))) {
       return res
@@ -126,12 +135,10 @@ const registerProduct = async function (req, res) {
 
     if (style) {
       if (!isValid(style)) {
-        return res
-          .status(400)
-          .send({
-            status: false,
-            message: "product style should be in valid format",
-          });
+        return res.status(400).send({
+          status: false,
+          message: "product style should be in valid format",
+        });
       }
     }
     availableSizes = JSON.parse(availableSizes);
@@ -146,52 +153,42 @@ const registerProduct = async function (req, res) {
         for (let i = 0; i < availableSizes.length; i++) {
           const element = availableSizes[i];
           if (!isValid(element)) {
-            return res
-              .status(400)
-              .send({
-                status: false,
-                message: "available sizes should be in valid format",
-              });
+            return res.status(400).send({
+              status: false,
+              message: "available sizes should be in valid format",
+            });
           }
 
           if (!["S", "XS", "M", "X", "L", "XXL", "XL"].includes(element)) {
-            return res
-              .status(400)
-              .send({
-                status: false,
-                message: `available sizes should be from:  S, XS, M, X, L, XXL, XL`,
-              });
+            return res.status(400).send({
+              status: false,
+              message: `available sizes should be from:  S, XS, M, X, L, XXL, XL`,
+            });
           }
         }
       } else {
         if (!isValid(availableSizes)) {
-          return res
-            .status(400)
-            .send({
-              status: false,
-              message: "available sizes should be in valid format",
-            });
+          return res.status(400).send({
+            status: false,
+            message: "available sizes should be in valid format",
+          });
         }
 
         if (!["S", "XS", "M", "X", "L", "XXL", "XL"].includes(availableSizes)) {
-          return res
-            .status(400)
-            .send({
-              status: false,
-              message: `available sizes should be from:  S, XS, M, X, L, XXL, XL`,
-            });
+          return res.status(400).send({
+            status: false,
+            message: `available sizes should be from:  S, XS, M, X, L, XXL, XL`,
+          });
         }
       }
     }
 
     if (installments) {
       if (!isValidNumber(installments)) {
-        return res
-          .status(400)
-          .send({
-            status: false,
-            message: "Product installments should be in valid format",
-          });
+        return res.status(400).send({
+          status: false,
+          message: "Product installments should be in valid format",
+        });
       }
     }
 
@@ -212,19 +209,17 @@ const registerProduct = async function (req, res) {
 
     const newProduct = await ProductModel.create(productData);
 
-    res
-      .status(201)
-      .send({
-        status: true,
-        message: "new product added successfully",
-        data: newProduct,
-      });
+    res.status(201).send({
+      status: true,
+      message: "new product added successfully",
+      data: newProduct,
+    });
   } catch (error) {
     res.status(500).send({ error: error.message });
   }
 };
 
-//************************************************************************************************* */
+//*****************************************FILTERED PRODUCT LIST*********************************************** */
 
 const filterProducts = async function (req, res) {
   try {
@@ -242,21 +237,17 @@ const filterProducts = async function (req, res) {
       for (let i = 0; i < size.length; i++) {
         const element = size[i];
         if (!isValid(element)) {
-          return res
-            .status(400)
-            .send({
-              status: false,
-              message: "filtered sizes should be in valid format",
-            });
+          return res.status(400).send({
+            status: false,
+            message: "filtered sizes should be in valid format",
+          });
         }
 
         if (!["S", "XS", "M", "X", "L", "XXL", "XL"].includes(element)) {
-          return res
-            .status(400)
-            .send({
-              status: false,
-              message: `available sizes should be from:  S, XS, M, X, L, XXL, XL`,
-            });
+          return res.status(400).send({
+            status: false,
+            message: `available sizes should be from:  S, XS, M, X, L, XXL, XL`,
+          });
         }
       }
 
@@ -295,17 +286,15 @@ const filterProducts = async function (req, res) {
 
     if (queryParams.hasOwnProperty("name")) {
       if (!isValid(name)) {
-        return res
-          .status(400)
-          .send({
-            status: false,
-            message: "product name should be in valid format",
-          });
+        return res.status(400).send({
+          status: false,
+          message: "product name should be in valid format",
+        });
       }
 
       const regexForName = new RegExp(name, "i");
 
-      filterConditions["title"] = { $regex: regexForName };
+      filterConditions["title"] = { $regex: regexForName }; 
     }
 
     const filteredProducts = await ProductModel.find(filterConditions).sort(
@@ -318,13 +307,11 @@ const filterProducts = async function (req, res) {
         .send({ status: false, message: "no product found" });
     }
 
-    res
-      .status(200)
-      .send({
-        status: true,
-        message: "Filtered product list",
-        data: filteredProducts,
-      });
+    res.status(200).send({
+      status: true,
+      message: "Filtered product list",
+      data: filteredProducts,
+    });
   } catch (error) {
     res.status(500).send({ error: error.message });
   }
@@ -342,12 +329,10 @@ const getProduct = async function (req, res) {
     }
 
     if (!productId) {
-      return res
-        .status(400)
-        .send({
-          status: false,
-          message: "Invalid request, product id is required in path params",
-        });
+      return res.status(400).send({
+        status: false,
+        message: "Invalid request, product id is required in path params",
+      });
     }
 
     if (!isValidIdType(productId)) {
@@ -366,13 +351,13 @@ const getProduct = async function (req, res) {
   }
 };
 
-//****************************************************************************************** */
+//*************************************UPDATE A PRODUCT DETAILS***************************************************** */
 
 const updateProductDetails = async function (req, res) {
   try {
     const queryParams = req.query;
     const requestBody = { ...req.body };
-    console.log(requestBody)
+    console.log(requestBody);
     const productId = req.params.productId;
     if (!isValidIdType(productId)) {
       return res
@@ -385,7 +370,9 @@ const updateProductDetails = async function (req, res) {
     }
 
     if (!isValidInput(requestBody)) {
-      return res.status(400).send({ status: false, message: "Update data required" });
+      return res
+        .status(400)
+        .send({ status: false, message: "Update data required" });
     }
 
     let {
@@ -400,7 +387,7 @@ const updateProductDetails = async function (req, res) {
       installments,
     } = requestBody;
 
-    const updates = { $set: {}, $addToSet: {} };
+    const updates = { $set: {} };
 
     if (requestBody.hasOwnProperty("title")) {
       if (!isValid(title)) {
@@ -414,7 +401,6 @@ const updateProductDetails = async function (req, res) {
         isDeleted: false,
         deletedAt: null,
       });
-
 
       if (productByTitle) {
         return res
@@ -433,10 +419,9 @@ const updateProductDetails = async function (req, res) {
       }
       updates["$set"]["description"] = description.trim();
     }
-    console.log(price)
+   
     if (requestBody.hasOwnProperty("price")) {
-      
-        if (!isValidNumber(price)) {
+      if (!isValidNumber(price)) {
         return res
           .status(400)
           .send({ status: false, message: "Invalid price" });
@@ -464,17 +449,142 @@ const updateProductDetails = async function (req, res) {
       updates["$set"]["currencyFormat"] = currencyFormat.trim();
     }
 
-    res.send({message: "sucess"})
+    if (requestBody.hasOwnProperty("isFreeShipping")) {
+      if (!isValid(isFreeShipping)) {
+        return res
+          .status(400)
+          .send({ status: false, message: "Invalid FreeShipping" });
+      }
+      if (isFreeShipping == "true" || isFreeShipping == "false") {
+        updates["$set"]["isFreeShipping"] = isFreeShipping;
+      } else {
+        return res
+          .status(400)
+          .send({ status: false, message: "Invalid FreeShipping" });
+      }
+    }
 
+    if (requestBody.hasOwnProperty("style")) {
+      if (!isValid(style)) {
+        return res
+          .status(400)
+          .send({ status: false, message: "Invalid style" });
+      }
+      updates["$set"]["style"] = style;
+    }
+
+    if (requestBody.hasOwnProperty("availableSizes")) {
+      availableSizes = JSON.parse(availableSizes);
+
+      if (Array.isArray(availableSizes)) {
+        for (let i = 0; i < availableSizes.length; i++) {
+          const element = availableSizes[i];
+
+          if (!["S", "XS", "M", "X", "L", "XXL", "XL"].includes(element)) {
+            return res.status(400).send({
+              status: false,
+              message: `available sizes should be from:  S, XS, M, X, L, XXL, XL`,
+            });
+          }
+        }
+
+        updates["$set"]["availableSizes"] =  availableSizes
+
+      } else {
+        return res
+          .status(400)
+          .send({ status: false, message: "Invalid availableSizes" });
+      }
+     
+    }
+
+    if (requestBody.hasOwnProperty("installments")) {
+      installments = Number(installments);
+      if (!isValidNumber(installments)) {
+        return res
+          .status(400)
+          .send({ status: false, message: "invalid installments" });
+      } else {
+        updates["$set"]["installments"] = installments;
+      }
+    }
+
+    const updatedProduct = await ProductModel.findOneAndUpdate(
+      { _id: productId },
+      updates,
+      { new: true }
+    );
+
+    res
+      .status(200)
+      .send({
+        status: true,
+        message: "Product data updated successfully",
+        data: updatedProduct,
+      });
+  } catch (error) {
+    res.status(500).send({ error: error.message });
+  }
+};
+
+//*************************************DELETE PRODUCT************************************************** */
+
+const deleteProduct = async function (req, res) {
+  try {
+    const productId = req.params.productId;
+    const queryParams = req.query;
+
+    if (isValidInput(queryParams)) {
+      return res.status(404).send({ status: false, message: "Page not found" });
+    }
+
+    if (!productId) {
+      return res.status(400).send({
+        status: false,
+        message: "Invalid request, product id is required in path params",
+      });
+    }
+
+    if (!isValidIdType(productId)) {
+      return res
+        .status(400)
+        .send({ status: false, message: "Invalid product id" });
+    }
+
+    const productById = await ProductModel.findOne({
+      _id: productId,
+      isDeleted: false,
+      deletedAt: null,
+    });
+
+    if (!productById) {
+      return res
+        .status(404)
+        .send({
+          status: false,
+          message: "No product found by this product id",
+        });
+    }
+
+    const markDirty = await ProductModel.findOneAndUpdate(
+      { _id: productId },
+      { $set: { isDeleted: true, deletedAt: Date.now() } }
+    );
+
+    res
+      .status(200)
+      .send({ status: true, message: "Product successfully deleted" });
   } catch (error) {
     res.status(500).send({ error: error.message });
   }
 };
 
 
+//**********************************EXPORTING PRODUCT RELATED HANDLER FUNCTION******************************* */
 module.exports = {
   registerProduct,
   filterProducts,
   getProduct,
   updateProductDetails,
+  deleteProduct,
 };
