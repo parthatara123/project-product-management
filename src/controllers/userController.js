@@ -15,8 +15,8 @@ const isValidInput = function (object) {
 };
 
 const isValidAddress = function (value) {
-  if (typeof value === "undefined" || value === null) return false;
-  if (typeof value === "object" && Array.isArray(value) === false && Object.keys(value).length > 0) return true;
+  if (typeof (value) === "undefined" || value === null) return false;
+  if (typeof (value) === "object" && Array.isArray(value) === false && Object.keys(value).length > 0) return true;
   return false;
 };
 
@@ -64,7 +64,7 @@ const userRegistration = async function (req, res) {
     }
 
     //using destructuring
-    const { fname, lname, email, phone, password } = requestBody;
+    let { fname, lname, email, phone, password, address } = requestBody;
 
     // each key validation starts here
     if (!isValid(fname)) {
@@ -145,13 +145,14 @@ const userRegistration = async function (req, res) {
       });
     }
 
-    const address = JSON.parse(requestBody.address);
+   
 
-    if (!isValidAddress(address)) {
+    if (!isValid(address)) {
       return res
         .status(400)
         .send({ status: false, message: "address is required" });
     } else {
+      address = JSON.parse(address);
       const { shipping, billing } = address;
 
       if (!isValidAddress(shipping)) {
@@ -296,8 +297,8 @@ const userLogin = async function (req, res) {
         .send({ status: false, message: "No user found by email" });
     }
     // comparing hashed password and login password
-    const isPasswordMatching = bcrypt.compare(password, userDetails.password);
-
+    const isPasswordMatching = await bcrypt.compare(password, userDetails.password);
+  
     if (!isPasswordMatching) {
       return res
         .status(400)
@@ -311,13 +312,14 @@ const userLogin = async function (req, res) {
     const token = jwt.sign(payload, secretKey, expiry);
 
     // setting bearer token in response header
-    res.header("authorization", "Bearer " + token);
+    res.header("Authorization", "Bearer " + token);
 
     const data = { userId: userDetails._id, token: token };
 
     res
       .status(200)
       .send({ status: true, message: "login successful", data: data });
+
   } catch (error) {
     res.status(500).send({ error: error.message });
   }
@@ -388,7 +390,7 @@ const userProfileUpdate = async function (req, res) {
       } else {
         return res.status(400).send({
           status: false,
-          message: "first name is required like: JOHN",
+          message: "first name should be in valid format",
         });
       }
     }
@@ -399,7 +401,7 @@ const userProfileUpdate = async function (req, res) {
       } else {
         return res
           .status(400)
-          .send({ status: false, message: "last name is required like: doe" });
+          .send({ status: false, message: "last name should be in valid format" });
       }
     }
 
@@ -466,7 +468,7 @@ const userProfileUpdate = async function (req, res) {
       } else {
         return res
           .status(400)
-          .send({ status: false, message: "password is required" });
+          .send({ status: false, message: "password should be in valid format" });
       }
     }
 
@@ -507,7 +509,7 @@ const userProfileUpdate = async function (req, res) {
                 "Shipping address: pin code should be valid like: 335659 ",
             });
           }
-          updates["address.shipping.pincode"] = pincode.trim();
+          updates["address.shipping.pincode"] = pincode
         }
       }
 
@@ -546,7 +548,7 @@ const userProfileUpdate = async function (req, res) {
             });
           }
 
-          updates["address.billing.pincode"] = pincode.trim();
+          updates["address.billing.pincode"] = pincode
         }
       }
     }

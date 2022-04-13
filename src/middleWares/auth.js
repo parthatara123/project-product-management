@@ -4,11 +4,11 @@ const mongoose = require('mongoose')
 
 //********************************AUTHENTICATION********************************** */
 
-const authentication = async function(req, res,next){
+const authentication = async function(req, res, next){
 
     const bearerToken = req.headers["authorization"]
     const token = bearerToken.split(" ")[1]
-    console.log(token)
+   
 
     const secretKey = '123451214654132466ASDFGwnweruhkwerbjhiHJKL!@#$%^&'
 
@@ -43,8 +43,7 @@ const authorization = async function(req, res, next){
     }
 
     const userByUserId = await UserModel.findById(userId)
-    console.log(userId)
-    console.log(decodedToken.userId)
+  
 
     if(!userByUserId){
         return res.status(404).send({status :false , message : " user not found"}) 

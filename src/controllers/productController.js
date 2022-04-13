@@ -1,6 +1,7 @@
 const ProductModel = require("../models/productModel");
 const Utility = require("../utilities/aws");
 const mongoose = require("mongoose");
+const getSymbolFromCurrency = require("currency-symbol-map");
 
 //*****************************************VALIDATION FUNCTIONS************************************************* */
 const isValid = function (value) {
@@ -28,16 +29,7 @@ const isValidIdType = function (productId) {
   return mongoose.Types.ObjectId.isValid(productId);
 };
 
-const isValidCurrencyId = function(value){
-  let regexForCurrencyId = /\b(?:USD|AUD|BRL|GBP|CAD|CNY|DKK|AED|EUR|HKD|INR|MYR|MXN|NZD|PHP|SGD|THB|ARS|COP|CLP|PEN|VEF)\b/
-  return regexForCurrencyId.test(value)
-}
-
-const isValidCurrencyFormat = function(value){
-
-}
-
-//************************************************************************** */
+//********************************REGISTERING NEW PRODUCT****************************************** */
 
 const registerProduct = async function (req, res) {
   try {
@@ -81,6 +73,7 @@ const registerProduct = async function (req, res) {
       isDeleted: false,
       deletedAt: null,
     });
+
     if (productByTitle) {
       return res
         .status(400)
@@ -93,10 +86,10 @@ const registerProduct = async function (req, res) {
         .send({ status: false, message: "Product description is required" });
     }
 
-    if(!isValidNumber(price)) {
-        return res
-          .status(400)
-          .send({ status: false, message: "Product price is required" });
+    if (!isValidNumber(price)) {
+      return res
+        .status(400)
+        .send({ status: false, message: "Product price is required" });
     }
 
     if (!isValidPrice(Number(price))) {
@@ -111,27 +104,36 @@ const registerProduct = async function (req, res) {
         .send({ status: false, message: "currencyId  is required" });
     }
 
+    if (getSymbolFromCurrency(currencyId) === undefined) {
+      return res
+        .status(400)
+        .send({ status: false, message: "currencyId  is not  valid" });
+    }
+
     if (!isValid(currencyFormat)) {
       return res
         .status(400)
         .send({ status: false, message: "currencyFormat is required" });
     }
 
+    if (getSymbolFromCurrency(currencyId) !== currencyFormat) {
+      return res
+        .status(400)
+        .send({
+          status: false,
+          message: "currencyFormat is not matching with currencyId",
+        });
+    }
+
     if (isFreeShipping) {
-      if (typeof isFreeShipping !== "boolean") {
+      if (isFreeShipping !== "true" || isFreeShipping !== "false") {
         return res
           .status(400)
           .send({ status: false, message: "isFreeShipping should be boolean" });
       }
     }
 
-    if (!image && image.length === 0) {
-      return res
-        .status(400)
-        .send({ status: false, message: "product image is required" });
-    }
-
-    const productImageUrl = await Utility.uploadFile(image[0]);
+ 
 
     if (style) {
       if (!isValid(style)) {
@@ -141,46 +143,40 @@ const registerProduct = async function (req, res) {
         });
       }
     }
+
+    if (!isValid(availableSizes)) {
+      return res.status(400).send({
+        status: false,
+        message: "product available sizes are required ",
+      });
+    }
+
     availableSizes = JSON.parse(availableSizes);
-    if (availableSizes) {
-      if (Array.isArray(availableSizes)) {
-        if (availableSizes.length === 0) {
-          return res
-            .status(400)
-            .send({ status: false, message: "enter valid available sizes" });
-        }
 
-        for (let i = 0; i < availableSizes.length; i++) {
-          const element = availableSizes[i];
-          if (!isValid(element)) {
-            return res.status(400).send({
-              status: false,
-              message: "available sizes should be in valid format",
-            });
-          }
+    if (Array.isArray(availableSizes)) {
+      if (availableSizes.length === 0) {
+        return res
+          .status(400)
+          .send({ status: false, message: "enter valid available sizes" });
+      }
 
-          if (!["S", "XS", "M", "X", "L", "XXL", "XL"].includes(element)) {
-            return res.status(400).send({
-              status: false,
-              message: `available sizes should be from:  S, XS, M, X, L, XXL, XL`,
-            });
-          }
-        }
-      } else {
-        if (!isValid(availableSizes)) {
-          return res.status(400).send({
-            status: false,
-            message: "available sizes should be in valid format",
-          });
-        }
+      for (let i = 0; i < availableSizes.length; i++) {
+        const element = availableSizes[i];
 
-        if (!["S", "XS", "M", "X", "L", "XXL", "XL"].includes(availableSizes)) {
+        if (!["S", "XS", "M", "X", "L", "XXL", "XL"].includes(element)) {
           return res.status(400).send({
             status: false,
             message: `available sizes should be from:  S, XS, M, X, L, XXL, XL`,
           });
         }
       }
+    } else {
+      return res
+        .status(400)
+        .send({
+          status: false,
+          message: "enter available sizes in valid format : [X, M, L]",
+        });
     }
 
     if (installments) {
@@ -191,6 +187,14 @@ const registerProduct = async function (req, res) {
         });
       }
     }
+    
+    if (!image || image.length === 0) {
+      return res
+        .status(400)
+        .send({ status: false, message: "product image is required" });
+    }
+
+    const productImageUrl = await Utility.uploadFile(image[0]);
 
     const productData = {
       title: title.trim(),
@@ -226,92 +230,119 @@ const filterProducts = async function (req, res) {
     const queryParams = req.query;
     const filterConditions = { isDeleted: false, deletedAt: null };
     const sorting = {};
-    console.log(queryParams);
 
     let { size, name, priceSort, priceGreaterThan, priceLessThan } =
       queryParams;
 
-    if (queryParams.hasOwnProperty("size")) {
-      size = JSON.parse(size);
+    if (isValidInput(queryParams)) {
+      if (queryParams.hasOwnProperty("size")) {
+        size = JSON.parse(size);
+        if (Array.isArray(size) && size.length > 0) {
+          for (let i = 0; i < size.length; i++) {
+            const element = size[i];
 
-      for (let i = 0; i < size.length; i++) {
-        const element = size[i];
-        if (!isValid(element)) {
-          return res.status(400).send({
-            status: false,
-            message: "filtered sizes should be in valid format",
-          });
+            if (!["S", "XS", "M", "X", "L", "XXL", "XL"].includes(element)) {
+              return res.status(400).send({
+                status: false,
+                message: `available sizes should be from:  S, XS, M, X, L, XXL, XL`,
+              });
+            }
+          }
+
+          filterConditions["availableSizes"] = { $in: size };
+        } else {
+          return res
+            .status(400)
+            .send({
+              status: false,
+              message: "size should be in array format: [X, M,L]",
+            });
         }
-
-        if (!["S", "XS", "M", "X", "L", "XXL", "XL"].includes(element)) {
-          return res.status(400).send({
-            status: false,
-            message: `available sizes should be from:  S, XS, M, X, L, XXL, XL`,
-          });
-        }
       }
 
-      filterConditions["availableSizes"] = { $in: size };
-    }
-
-    if (queryParams.hasOwnProperty("priceGreaterThan")) {
-      if (!isValidPrice(Number(priceGreaterThan))) {
-        return res
-          .status(400)
-          .send({ status: false, message: "Enter a valid price" });
-      }
-
-      filterConditions["price"] = { $gt: Number(priceGreaterThan) };
-    }
-
-    if (queryParams.hasOwnProperty("priceLessThan")) {
-      if (!isValidPrice(Number(priceLessThan))) {
-        return res
-          .status(400)
-          .send({ status: false, message: "Enter a valid price" });
-      }
       if (queryParams.hasOwnProperty("priceGreaterThan")) {
-        filterConditions["price"] = {
-          $gt: Number(priceGreaterThan),
-          $lt: Number(priceLessThan),
-        };
-      } else {
-        filterConditions["price"] = { $lt: Number(priceLessThan) };
-      }
-    }
+        if (!isValidPrice(Number(priceGreaterThan))) {
+          return res
+            .status(400)
+            .send({ status: false, message: "Enter a valid price" });
+        }
 
-    if (queryParams.hasOwnProperty("priceSort")) {
-      sorting["price"] = Number(priceSort);
-    }
-
-    if (queryParams.hasOwnProperty("name")) {
-      if (!isValid(name)) {
-        return res.status(400).send({
-          status: false,
-          message: "product name should be in valid format",
-        });
+        filterConditions["price"] = { $gt: Number(priceGreaterThan) };
       }
 
-      const regexForName = new RegExp(name, "i");
+      if (queryParams.hasOwnProperty("priceLessThan")) {
+        if (!isValidPrice(Number(priceLessThan))) {
+          return res
+            .status(400)
+            .send({ status: false, message: "Enter a valid price" });
+        }
+        if (queryParams.hasOwnProperty("priceGreaterThan")) {
+          filterConditions["price"] = {
+            $gt: Number(priceGreaterThan),
+            $lt: Number(priceLessThan),
+          };
+        } else {
+          filterConditions["price"] = { $lt: Number(priceLessThan) };
+        }
+      }
 
-      filterConditions["title"] = { $regex: regexForName }; 
+      if (queryParams.hasOwnProperty("priceSort")) {
+        if (!isValidNumber(priceSort)) {
+          return res
+            .status(400)
+            .send({
+              status: false,
+              message: "price sort should be a number:  -1 or 1",
+            });
+        }
+        sorting["price"] = Number(priceSort);
+      }
+
+      if (queryParams.hasOwnProperty("name")) {
+        if (!isValid(name)) {
+          return res.status(400).send({
+            status: false,
+            message: "product name should be in valid format",
+          });
+        }
+
+        const regexForName = new RegExp(name, "i");
+
+        filterConditions["title"] = { $regex: regexForName };
+      }
+
+      const filteredProducts = await ProductModel.find(filterConditions).sort(
+        sorting
+      );
+
+      if (filteredProducts.length == 0) {
+        return res
+          .status(404)
+          .send({ status: false, message: "no product found" });
+      }
+
+      res.status(200).send({
+        status: true,
+        message: "Filtered product list is here",
+        productCount: filteredProducts.length,
+        data: filteredProducts,
+      });
+    } else {
+      const allProducts = await ProductModel.find(filterConditions);
+
+      if (allProducts.length == 0) {
+        return res
+          .status(404)
+          .send({ status: false, message: "no products found" });
+      }
+
+      res.status(200).send({
+        status: true,
+        message: " Product list is here",
+        productCount: allProducts.length,
+        data: allProducts,
+      });
     }
-
-    const filteredProducts = await ProductModel.find(filterConditions).sort(
-      sorting
-    );
-
-    if (filteredProducts.length == 0) {
-      return res
-        .status(404)
-        .send({ status: false, message: "no product found" });
-    }
-
-    res.status(200).send({
-      status: true,
-      message: "Filtered product list",
-      data: filteredProducts,
-    });
   } catch (error) {
     res.status(500).send({ error: error.message });
   }
@@ -357,16 +388,23 @@ const updateProductDetails = async function (req, res) {
   try {
     const queryParams = req.query;
     const requestBody = { ...req.body };
-    console.log(requestBody);
     const productId = req.params.productId;
-    if (!isValidIdType(productId)) {
+
+   
+    if (isValidInput(queryParams)) {
+      return res.status(404).send({ status: false, message: "Page not found" });
+    }
+
+     if (!isValidIdType(productId)) {
       return res
         .status(400)
         .send({ status: false, message: "invalid product id" });
     }
 
-    if (isValidInput(queryParams)) {
-      return res.status(404).send({ status: false, message: "Page not found" });
+    const productByProductId = await ProductModel.findOne({_id : productId, isDeleted : false, deletedAt : null})
+
+    if(!productByProductId){
+      return res.status(404).send({ status: false, message: "No product found by product id"})
     }
 
     if (!isValidInput(requestBody)) {
@@ -419,7 +457,7 @@ const updateProductDetails = async function (req, res) {
       }
       updates["$set"]["description"] = description.trim();
     }
-   
+
     if (requestBody.hasOwnProperty("price")) {
       if (!isValidNumber(price)) {
         return res
@@ -430,16 +468,16 @@ const updateProductDetails = async function (req, res) {
     }
 
     if (requestBody.hasOwnProperty("currencyId")) {
-      if (!isValid(currencyId)) {
+      if (!isValid(currencyId) && getSymbolFromCurrency(currencyId) === undefined) {
         return res
           .status(400)
           .send({ status: false, message: "Invalid currencyId" });
       }
+      
       updates["$set"]["currencyId"] = currencyId.trim();
     }
 
-    //CURRENCY ID VALIDATION IS PENDING
-
+  
     if (requestBody.hasOwnProperty("currencyFormat")) {
       if (!isValid(currencyFormat)) {
         return res
@@ -476,7 +514,7 @@ const updateProductDetails = async function (req, res) {
     if (requestBody.hasOwnProperty("availableSizes")) {
       availableSizes = JSON.parse(availableSizes);
 
-      if (Array.isArray(availableSizes)) {
+      if (Array.isArray(availableSizes) && availableSizes.length > 0) {
         for (let i = 0; i < availableSizes.length; i++) {
           const element = availableSizes[i];
 
@@ -488,14 +526,12 @@ const updateProductDetails = async function (req, res) {
           }
         }
 
-        updates["$set"]["availableSizes"] =  availableSizes
-
+        updates["$set"]["availableSizes"] = availableSizes;
       } else {
         return res
           .status(400)
           .send({ status: false, message: "Invalid availableSizes" });
       }
-     
     }
 
     if (requestBody.hasOwnProperty("installments")) {
@@ -515,13 +551,11 @@ const updateProductDetails = async function (req, res) {
       { new: true }
     );
 
-    res
-      .status(200)
-      .send({
-        status: true,
-        message: "Product data updated successfully",
-        data: updatedProduct,
-      });
+    res.status(200).send({
+      status: true,
+      message: "Product data updated successfully",
+      data: updatedProduct,
+    });
   } catch (error) {
     res.status(500).send({ error: error.message });
   }
@@ -558,12 +592,10 @@ const deleteProduct = async function (req, res) {
     });
 
     if (!productById) {
-      return res
-        .status(404)
-        .send({
-          status: false,
-          message: "No product found by this product id",
-        });
+      return res.status(404).send({
+        status: false,
+        message: "No product found by this product id",
+      });
     }
 
     const markDirty = await ProductModel.findOneAndUpdate(
@@ -578,7 +610,6 @@ const deleteProduct = async function (req, res) {
     res.status(500).send({ error: error.message });
   }
 };
-
 
 //**********************************EXPORTING PRODUCT RELATED HANDLER FUNCTION******************************* */
 module.exports = {
