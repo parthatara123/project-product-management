@@ -7,14 +7,12 @@ return Object.keys(object).length > 0
 
 
 const isValidInputValue = function(value){
-    value = value.trim()
     if(typeof (value) === 'undefined' || value === null) return false
-    if(typeof (value) === 'string' && value.trim().length > 0 && Number(value) === NaN) return true
+    if(typeof (value) === 'string' && value.trim().length > 0) return true
     return false
 }
 
 const isValidOnlyCharacters = function(value){
-    value = value.trim()
     return /^[A-Za-z]+$/.test(value)
 }
   
@@ -25,13 +23,11 @@ const isValidAddress = function (value) {
   };
   
   const isValidEmail = function (email) {
-    email = email.trim()
     const regexForEmail = /^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/;
     return regexForEmail.test(email);
   };
   
   const isValidPhone = function (phone) {
-    phone = phone.trim()
     const regexForMobile = /^[6-9]\d{9}$/;
     return regexForMobile.test(phone);
   };

@@ -31,7 +31,7 @@ const userRegistration = async function (req, res) {
     if (!Validator.isValidInputValue(fname)) {
       return res
         .status(400)
-        .send({ status: false, message: "first name is required." });
+        .send({ status: false, message: "First name is required like : Suraj." });
     }
 
     if (!Validator.isValidOnlyCharacters(fname)) {
@@ -43,7 +43,6 @@ const userRegistration = async function (req, res) {
         });
     }
 
-    // if(!isNaN(parseFloat(fname))) return res.status(400).send({ status: false, message: "First name is number" })
 
     if (!Validator.isValidInputValue(lname)) {
       return res
@@ -80,14 +79,6 @@ const userRegistration = async function (req, res) {
         .status(400)
         .send({ status: false, message: "Email address already exist" });
     }
-
-    if (!image || image.length == 0) {
-      return res
-        .status(400)
-        .send({ status: false, message: "no profile image found" });
-    }
-
-    const uploadedProfilePictureUrl = await utility.uploadFile(image[0]);
 
     if (!Validator.isValidInputValue(phone)) {
       return res
@@ -164,7 +155,7 @@ const userRegistration = async function (req, res) {
             });
         }
 
-        if (!/^[1-9][0-9]{5}$/.test(pincode)) {
+        if (!Validator.isValidPincode(pincode)) {
           return res.status(400).send({
             status: false,
             message: "Shipping address: pin code should be valid like: 335659 ",
@@ -203,18 +194,28 @@ const userRegistration = async function (req, res) {
         }
 
         if (!Validator.isValidPincode(pincode)) {
-          return res.status(400).send({
+          return res.status(400).send({ 
             status: false,
             message: "Billing address: pin code should be valid like: 335659 ",
           });
         }
       }
+
     } else {
       return res
         .status(400)
         .send({ status: false, message: "address is required" });
     }
 
+    if (!image || image.length == 0) {
+      return res
+        .status(400)
+        .send({ status: false, message: "no profile image found" });
+    }
+
+    const uploadedProfilePictureUrl = await utility.uploadFile(image[0]);
+
+    
     // password encryption
     const salt = await bcrypt.genSalt(10);
     const encryptedPassword = await bcrypt.hash(password, salt);
@@ -367,13 +368,19 @@ const userProfileUpdate = async function (req, res) {
     const queryParams = req.query;
 
     // creating deep copy of request body as [object: null-prototype]
-    const requestBody = JSON.parse(JSON.stringify(req.body));
+    const requestBody = {...req.body};
     const userId = req.params.userId;
     const image = req.files;
 
     //no data is required from query params
     if (Validator.isValidInputBody(queryParams)) {
       return res.status(404).send({ status: false, message: "Page not found" });
+    }
+
+    if (!Validator.isValidInputBody(requestBody) && image.length == 0) {
+      return res
+        .status(400)
+        .send({ status: false, message: "Update data required" });
     }
 
     // created an empty object. now will add properties that needs to be updated

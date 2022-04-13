@@ -3,33 +3,6 @@ const AWS = require("../utilities/aws");
 const Validator = require('../utilities/validator')
 const getSymbolFromCurrency = require("currency-symbol-map");
 
-//*****************************************VALIDATION FUNCTIONS************************************************* */
-const isValid = function (value) {
-  if (typeof (value) === "undefined" || value === null) return false;
-  if (typeof (value) === "string" && value.trim().length > 0 && Number(value) === NaN) return true;
-  return false;
-};
-
-const isValidInput = function (object) {
-  return Object.keys(object).length > 0;
-};
-
-const isValidNumber = function (value) {
-  if (typeof value === "undefined" || value === null) return false;
-  if (typeof value === "string" && Number(value) !== NaN) return true;
-  if (typeof value === "number") return true;
-  return false;
-};
-
-const isValidPrice = function (price) {
- let regexForPrice = /^\d+(\.\d{1,2})?$/
- return regexForPrice.test(price)
-};
-
-const isValidIdType = function (productId) {
-  return mongoose.Types.ObjectId.isValid(productId);
-};
-
 
 //********************************REGISTERING NEW PRODUCT****************************************** */
 
@@ -71,9 +44,7 @@ const registerProduct = async function (req, res) {
     }
 
     const productByTitle = await ProductModel.findOne({
-      title: title,
-      isDeleted: false,
-      deletedAt: null,
+      title: title
     });
 
     if (productByTitle) {
@@ -127,8 +98,9 @@ const registerProduct = async function (req, res) {
         });
     }
 
+
     if (isFreeShipping) {
-      if (isFreeShipping !== "true" || isFreeShipping !== "false") {
+      if (["true", "false"].includes(isFreeShipping) == false) {
         return res
           .status(400)
           .send({ status: false, message: "isFreeShipping should be boolean" });
@@ -383,6 +355,7 @@ const updateProductDetails = async function (req, res) {
     const queryParams = req.query;
     const requestBody = { ...req.body };
     const productId = req.params.productId;
+    const image = req.files
 
    
     if (Validator.isValidInputBody(queryParams)) {
@@ -401,11 +374,12 @@ const updateProductDetails = async function (req, res) {
       return res.status(404).send({ status: false, message: "No product found by product id"})
     }
 
-    if (!Validator.isValidInputBody(requestBody)) {
+    if (!Validator.isValidInputBody(requestBody) && image.length == 0) {
       return res
         .status(400)
         .send({ status: false, message: "Update data required" });
     }
+
 
     let {
       title,
@@ -416,7 +390,7 @@ const updateProductDetails = async function (req, res) {
       isFreeShipping,
       style,
       availableSizes,
-      installments,
+      installments
     } = requestBody;
 
     const updates = { $set: {} };
@@ -429,9 +403,7 @@ const updateProductDetails = async function (req, res) {
       }
 
       const productByTitle = await ProductModel.findOne({
-        title: title,
-        isDeleted: false,
-        deletedAt: null,
+        title: title
       });
 
       if (productByTitle) {
@@ -472,29 +444,27 @@ const updateProductDetails = async function (req, res) {
       updates["$set"]["currencyFormat"] = getSymbolFromCurrency(currencyId)
     }
 
-  //! here in both cases we have to check 
-    // if (requestBody.hasOwnProperty("currencyFormat")) {
-    //   if (!Validator.isValidInputValue(currencyFormat)) {
-    //     return res
-    //       .status(400)
-    //       .send({ status: false, message: "Invalid currencyFormat" });
-    //   }
-    //   updates["$set"]["currencyFormat"] = currencyFormat.trim();
-    // }
+  //! Updated currency format according to currency id
 
-    if (requestBody.hasOwnProperty("isFreeShipping")) {
-      if (!Validator.isValidInputValue(isFreeShipping)) {
+    if (requestBody.hasOwnProperty("currencyFormat")) {
+       {
         return res
           .status(400)
-          .send({ status: false, message: "Invalid FreeShipping" });
+          .send({ status: false, message: "Please update currency Id only, currency formate will be updated accordingly" });
       }
-      if (isFreeShipping !== "true" && isFreeShipping !== "false") {
-        return res
-        .status(400)
-        .send({ status: false, message: "Invalid FreeShipping" });
-      }
-      updates["$set"]["isFreeShipping"] = isFreeShipping;
-    }
+    }    
+
+
+    if (requestBody.hasOwnProperty("isFreeShipping")) {
+    
+        if (["true", "false"].includes(isFreeShipping) == false) {
+          return res
+            .status(400)
+            .send({ status: false, message: "isFreeShipping should be boolean" });
+        }
+        updates["$set"]["isFreeShipping"] = isFreeShipping;
+    };
+    
 
     if (requestBody.hasOwnProperty("style")) {
       if (!Validator.isValidInputValue(style)) {
@@ -531,7 +501,7 @@ const updateProductDetails = async function (req, res) {
       } else {
         return res
           .status(400)
-          .send({ status: false, message: "Invalid availableSizes" });
+          .send({ status: false, message: "Invalid available Sizes" });
       }
     }
 
@@ -546,6 +516,14 @@ const updateProductDetails = async function (req, res) {
       }
     }
 
+    
+    if(image && image.length > 0){
+      const productImageUrl = await AWS.uploadFile(image[0])      
+    
+      updates["$set"]["productImage"] = productImageUrl
+    }
+
+
     const updatedProduct = await ProductModel.findOneAndUpdate(
       { _id: productId },
       updates,
@@ -557,6 +535,9 @@ const updateProductDetails = async function (req, res) {
       message: "Product data updated successfully",
       data: updatedProduct,
     });
+
+
+    
   } catch (error) {
     res.status(500).send({ error: error.message });
   }
