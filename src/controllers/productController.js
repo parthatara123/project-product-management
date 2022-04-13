@@ -1,12 +1,12 @@
 const ProductModel = require("../models/productModel");
-const Utility = require("../utilities/aws");
-const mongoose = require("mongoose");
+const AWS = require("../utilities/aws");
+const Validator = require('../utilities/validator')
 const getSymbolFromCurrency = require("currency-symbol-map");
 
 //*****************************************VALIDATION FUNCTIONS************************************************* */
 const isValid = function (value) {
-  if (typeof value === "undefined" || value === null) return false;
-  if (typeof value === "string" && value.trim().length > 0) return true;
+  if (typeof (value) === "undefined" || value === null) return false;
+  if (typeof (value) === "string" && value.trim().length > 0 && Number(value) === NaN) return true;
   return false;
 };
 
@@ -22,12 +22,14 @@ const isValidNumber = function (value) {
 };
 
 const isValidPrice = function (price) {
-  return price - 0 == price && (" " + price).trim().length > 0;
+ let regexForPrice = /^\d+(\.\d{1,2})?$/
+ return regexForPrice.test(price)
 };
 
 const isValidIdType = function (productId) {
   return mongoose.Types.ObjectId.isValid(productId);
 };
+
 
 //********************************REGISTERING NEW PRODUCT****************************************** */
 
@@ -36,14 +38,14 @@ const registerProduct = async function (req, res) {
     const requestBody = { ...req.body };
     const queryParams = req.query;
     const image = req.files;
-    console.log(requestBody);
+
 
     //no data is required from query params
-    if (isValidInput(queryParams)) {
+    if (Validator.isValidInputBody(queryParams)) {
       return res.status(404).send({ status: false, message: "Page not found" });
     }
 
-    if (!isValidInput(requestBody)) {
+    if (!Validator.isValidInputBody(requestBody)) {
       return res.status(400).send({
         status: false,
         message: "User data is required for registration",
@@ -62,7 +64,7 @@ const registerProduct = async function (req, res) {
       installments,
     } = requestBody;
 
-    if (!isValid(title)) {
+    if (!Validator.isValidInputValue(title)) {
       return res
         .status(400)
         .send({ status: false, message: "Product title is required" });
@@ -80,25 +82,25 @@ const registerProduct = async function (req, res) {
         .send({ status: false, message: "Product title already exist" });
     }
 
-    if (!isValid(description)) {
+    if (!Validator.isValidInputValue(description)) {
       return res
         .status(400)
         .send({ status: false, message: "Product description is required" });
     }
 
-    if (!isValidNumber(price)) {
+    if (!Validator.isValidNumber(price)) {
       return res
         .status(400)
         .send({ status: false, message: "Product price is required" });
     }
 
-    if (!isValidPrice(Number(price))) {
+    if (!Validator.isValidPrice(price)) {
       return res
         .status(400)
         .send({ status: false, message: "Enter a valid Product price" });
     }
 
-    if (!isValid(currencyId)) {
+    if (!Validator.isValidInputValue(currencyId)) {
       return res
         .status(400)
         .send({ status: false, message: "currencyId  is required" });
@@ -110,7 +112,7 @@ const registerProduct = async function (req, res) {
         .send({ status: false, message: "currencyId  is not  valid" });
     }
 
-    if (!isValid(currencyFormat)) {
+    if (!Validator.isValidInputValue(currencyFormat)) {
       return res
         .status(400)
         .send({ status: false, message: "currencyFormat is required" });
@@ -136,7 +138,7 @@ const registerProduct = async function (req, res) {
  
 
     if (style) {
-      if (!isValid(style)) {
+      if (!Validator.isValidInputValue(style)) {
         return res.status(400).send({
           status: false,
           message: "product style should be in valid format",
@@ -144,7 +146,7 @@ const registerProduct = async function (req, res) {
       }
     }
 
-    if (!isValid(availableSizes)) {
+    if (!Validator.isValidInputValue(availableSizes)) {
       return res.status(400).send({
         status: false,
         message: "product available sizes are required ",
@@ -153,12 +155,11 @@ const registerProduct = async function (req, res) {
 
     availableSizes = JSON.parse(availableSizes);
 
-    if (Array.isArray(availableSizes)) {
-      if (availableSizes.length === 0) {
-        return res
+    if (!Array.isArray(availableSizes) || availableSizes.length === 0) {
+          return res
           .status(400)
-          .send({ status: false, message: "enter valid available sizes" });
-      }
+          .send({ status: false, message: "enter available sizes in valid format : [X, M, L]" });
+    }
 
       for (let i = 0; i < availableSizes.length; i++) {
         const element = availableSizes[i];
@@ -166,21 +167,14 @@ const registerProduct = async function (req, res) {
         if (!["S", "XS", "M", "X", "L", "XXL", "XL"].includes(element)) {
           return res.status(400).send({
             status: false,
-            message: `available sizes should be from:  S, XS, M, X, L, XXL, XL`,
+            message: `available sizes should be from:  [S, XS, M, X, L, XXL, XL]`,
           });
         }
       }
-    } else {
-      return res
-        .status(400)
-        .send({
-          status: false,
-          message: "enter available sizes in valid format : [X, M, L]",
-        });
-    }
+   
 
     if (installments) {
-      if (!isValidNumber(installments)) {
+      if (!Validator.isValidNumber(installments)) {
         return res.status(400).send({
           status: false,
           message: "Product installments should be in valid format",
@@ -194,7 +188,7 @@ const registerProduct = async function (req, res) {
         .send({ status: false, message: "product image is required" });
     }
 
-    const productImageUrl = await Utility.uploadFile(image[0]);
+    const productImageUrl = await AWS.uploadFile(image[0]);
 
     const productData = {
       title: title.trim(),
@@ -223,7 +217,7 @@ const registerProduct = async function (req, res) {
   }
 };
 
-//*****************************************FILTERED PRODUCT LIST*********************************************** */
+//*****************************************GET ALL & FILTERED PRODUCTS LIST*********************************************** */
 
 const filterProducts = async function (req, res) {
   try {
@@ -234,7 +228,7 @@ const filterProducts = async function (req, res) {
     let { size, name, priceSort, priceGreaterThan, priceLessThan } =
       queryParams;
 
-    if (isValidInput(queryParams)) {
+    if (Validator.isValidInputBody(queryParams)) {
       if (queryParams.hasOwnProperty("size")) {
         size = JSON.parse(size);
         if (Array.isArray(size) && size.length > 0) {
@@ -261,7 +255,7 @@ const filterProducts = async function (req, res) {
       }
 
       if (queryParams.hasOwnProperty("priceGreaterThan")) {
-        if (!isValidPrice(Number(priceGreaterThan))) {
+        if (!Validator.isValidPrice((priceGreaterThan))) {
           return res
             .status(400)
             .send({ status: false, message: "Enter a valid price" });
@@ -271,7 +265,7 @@ const filterProducts = async function (req, res) {
       }
 
       if (queryParams.hasOwnProperty("priceLessThan")) {
-        if (!isValidPrice(Number(priceLessThan))) {
+        if (!Validator.isValidPrice(priceLessThan)) {
           return res
             .status(400)
             .send({ status: false, message: "Enter a valid price" });
@@ -287,7 +281,7 @@ const filterProducts = async function (req, res) {
       }
 
       if (queryParams.hasOwnProperty("priceSort")) {
-        if (!isValidNumber(priceSort)) {
+        if (!Validator.isValidNumber(priceSort) || ["-1", "1"].includes(priceSort)) {
           return res
             .status(400)
             .send({
@@ -299,7 +293,7 @@ const filterProducts = async function (req, res) {
       }
 
       if (queryParams.hasOwnProperty("name")) {
-        if (!isValid(name)) {
+        if (!Validator.isValidInputValue(name)) {
           return res.status(400).send({
             status: false,
             message: "product name should be in valid format",
@@ -348,14 +342,14 @@ const filterProducts = async function (req, res) {
   }
 };
 
-//************************************************************************************ */
+//*************************************GET PRODUCT DETAILS*********************************************** */
 
 const getProduct = async function (req, res) {
   try {
     const productId = req.params.productId;
     const queryParams = req.query;
 
-    if (isValidInput(queryParams)) {
+    if (Validator.isValidInputBody(queryParams)) {
       return res.status(404).send({ status: false, message: "Page not found" });
     }
 
@@ -366,7 +360,7 @@ const getProduct = async function (req, res) {
       });
     }
 
-    if (!isValidIdType(productId)) {
+    if (!Validator.isValidObjectId(productId)) {
       return res
         .status(400)
         .send({ status: false, message: "Invalid product id" });
@@ -391,11 +385,11 @@ const updateProductDetails = async function (req, res) {
     const productId = req.params.productId;
 
    
-    if (isValidInput(queryParams)) {
+    if (Validator.isValidInputBody(queryParams)) {
       return res.status(404).send({ status: false, message: "Page not found" });
     }
 
-     if (!isValidIdType(productId)) {
+     if (!Validator.isValidObjectId(productId)) {
       return res
         .status(400)
         .send({ status: false, message: "invalid product id" });
@@ -407,7 +401,7 @@ const updateProductDetails = async function (req, res) {
       return res.status(404).send({ status: false, message: "No product found by product id"})
     }
 
-    if (!isValidInput(requestBody)) {
+    if (!Validator.isValidInputBody(requestBody)) {
       return res
         .status(400)
         .send({ status: false, message: "Update data required" });
@@ -428,7 +422,7 @@ const updateProductDetails = async function (req, res) {
     const updates = { $set: {} };
 
     if (requestBody.hasOwnProperty("title")) {
-      if (!isValid(title)) {
+      if (!Validator.isValidInputValue(title)) {
         return res
           .status(400)
           .send({ status: false, message: "Invalid title" });
@@ -450,7 +444,7 @@ const updateProductDetails = async function (req, res) {
     }
 
     if (requestBody.hasOwnProperty("description")) {
-      if (!isValid(description)) {
+      if (!Validator.isValidInputValue(description)) {
         return res
           .status(400)
           .send({ status: false, message: "Invalid description" });
@@ -459,7 +453,7 @@ const updateProductDetails = async function (req, res) {
     }
 
     if (requestBody.hasOwnProperty("price")) {
-      if (!isValidNumber(price)) {
+      if (!Validator.isValidPrice(price)) {
         return res
           .status(400)
           .send({ status: false, message: "Invalid price" });
@@ -468,42 +462,42 @@ const updateProductDetails = async function (req, res) {
     }
 
     if (requestBody.hasOwnProperty("currencyId")) {
-      if (!isValid(currencyId) && getSymbolFromCurrency(currencyId) === undefined) {
+      if (!Validator.isValidInputValue(currencyId) || getSymbolFromCurrency(currencyId) === undefined) {
         return res
           .status(400)
           .send({ status: false, message: "Invalid currencyId" });
       }
-      
+       
       updates["$set"]["currencyId"] = currencyId.trim();
+      updates["$set"]["currencyFormat"] = getSymbolFromCurrency(currencyId)
     }
 
-  
-    if (requestBody.hasOwnProperty("currencyFormat")) {
-      if (!isValid(currencyFormat)) {
-        return res
-          .status(400)
-          .send({ status: false, message: "Invalid currencyFormat" });
-      }
-      updates["$set"]["currencyFormat"] = currencyFormat.trim();
-    }
+  //! here in both cases we have to check 
+    // if (requestBody.hasOwnProperty("currencyFormat")) {
+    //   if (!Validator.isValidInputValue(currencyFormat)) {
+    //     return res
+    //       .status(400)
+    //       .send({ status: false, message: "Invalid currencyFormat" });
+    //   }
+    //   updates["$set"]["currencyFormat"] = currencyFormat.trim();
+    // }
 
     if (requestBody.hasOwnProperty("isFreeShipping")) {
-      if (!isValid(isFreeShipping)) {
+      if (!Validator.isValidInputValue(isFreeShipping)) {
         return res
           .status(400)
           .send({ status: false, message: "Invalid FreeShipping" });
       }
-      if (isFreeShipping == "true" || isFreeShipping == "false") {
-        updates["$set"]["isFreeShipping"] = isFreeShipping;
-      } else {
+      if (isFreeShipping !== "true" && isFreeShipping !== "false") {
         return res
-          .status(400)
-          .send({ status: false, message: "Invalid FreeShipping" });
+        .status(400)
+        .send({ status: false, message: "Invalid FreeShipping" });
       }
+      updates["$set"]["isFreeShipping"] = isFreeShipping;
     }
 
     if (requestBody.hasOwnProperty("style")) {
-      if (!isValid(style)) {
+      if (!Validator.isValidInputValue(style)) {
         return res
           .status(400)
           .send({ status: false, message: "Invalid style" });
@@ -512,6 +506,13 @@ const updateProductDetails = async function (req, res) {
     }
 
     if (requestBody.hasOwnProperty("availableSizes")) {
+
+      if (!Validator.isValidInputValue(availableSizes)) {
+        return res
+          .status(400)
+          .send({ status: false, message: "Invalid format of availableSizes" });
+      }
+     
       availableSizes = JSON.parse(availableSizes);
 
       if (Array.isArray(availableSizes) && availableSizes.length > 0) {
@@ -535,13 +536,13 @@ const updateProductDetails = async function (req, res) {
     }
 
     if (requestBody.hasOwnProperty("installments")) {
-      installments = Number(installments);
-      if (!isValidNumber(installments)) {
+      
+      if (!Validator.isValidNumber(installments)) {
         return res
           .status(400)
           .send({ status: false, message: "invalid installments" });
       } else {
-        updates["$set"]["installments"] = installments;
+        updates["$set"]["installments"] = Number(installments);
       }
     }
 
@@ -568,7 +569,7 @@ const deleteProduct = async function (req, res) {
     const productId = req.params.productId;
     const queryParams = req.query;
 
-    if (isValidInput(queryParams)) {
+    if (Validator.isValidInputBody(queryParams)) {
       return res.status(404).send({ status: false, message: "Page not found" });
     }
 
@@ -579,7 +580,7 @@ const deleteProduct = async function (req, res) {
       });
     }
 
-    if (!isValidIdType(productId)) {
+    if (!Validator.isValidObjectId(productId)) {
       return res
         .status(400)
         .send({ status: false, message: "Invalid product id" });

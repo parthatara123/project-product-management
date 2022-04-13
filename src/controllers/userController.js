@@ -2,61 +2,22 @@ const UserModel = require("../models/userModel");
 const utility = require("../utilities/aws");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
-
-//*****************************************VALIDATION FUNCTIONS************************************************* */
-const isValid = function (value) {
-  if (typeof value === "undefined" || value === null) return false;
-  if (typeof value === "string" && value.trim().length > 0) return true;
-  return false;
-};
-
-const isValidInput = function (object) {
-  return Object.keys(object).length > 0;
-};
-
-const isValidAddress = function (value) {
-  if (typeof (value) === "undefined" || value === null) return false;
-  if (typeof (value) === "object" && Array.isArray(value) === false && Object.keys(value).length > 0) return true;
-  return false;
-};
-
-const isValidEmail = function (email) {
-  const regexForEmail = /^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/;
-  return regexForEmail.test(email);
-};
-
-const isValidPhone = function (phone) {
-  const regexForMobile = /^[6-9]\d{9}$/;
-  return regexForMobile.test(phone);
-};
-
-const isValidPassword = function (password) {
-  const regexForPass = /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{8,15}$/;
-  return regexForPass.test(password);
-};
-
-const isValidPincode = function (value) {
-  if (typeof value === "undefined" || value === null) return false;
-  if (typeof value === "number" && value.length === 6) return true;
-  return false;
-};
+const Validator = require("../utilities/validator");
 
 //*********************************************USER REGISTRATION******************************************** */
 
 const userRegistration = async function (req, res) {
   try {
-    const requestBody = {...req.body};
+    const requestBody = { ...req.body };
     const queryParams = req.query;
     const image = req.files;
-    console.log(requestBody);
-    console.log(image)
 
     //no data is required from query params
-    if (isValidInput(queryParams)) {
+    if (Validator.isValidInputBody(queryParams)) {
       return res.status(404).send({ status: false, message: "Page not found" });
     }
 
-    if (!isValidInput(requestBody)) {
+    if (!Validator.isValidInputBody(requestBody)) {
       return res.status(400).send({
         status: false,
         message: "User data is required for registration",
@@ -67,27 +28,45 @@ const userRegistration = async function (req, res) {
     let { fname, lname, email, phone, password, address } = requestBody;
 
     // each key validation starts here
-    if (!isValid(fname)) {
+    if (!Validator.isValidInputValue(fname)) {
       return res
         .status(400)
-        .send({ status: false, message: "first name is required like: JOHN" });
+        .send({ status: false, message: "first name is required." });
+    }
+
+    if (!Validator.isValidOnlyCharacters(fname)) {
+      return res
+        .status(400)
+        .send({
+          status: false,
+          message: "Only alphabets allowed in first name",
+        });
     }
 
     // if(!isNaN(parseFloat(fname))) return res.status(400).send({ status: false, message: "First name is number" })
 
-    if (!isValid(lname)) {
+    if (!Validator.isValidInputValue(lname)) {
       return res
         .status(400)
         .send({ status: false, message: "last name is required like: DOE" });
     }
 
-    if (!isValid(email)) {
+    if (!Validator.isValidOnlyCharacters(lname)) {
+      return res
+        .status(400)
+        .send({
+          status: false,
+          message: "Only alphabets allowed in last name",
+        });
+    }
+
+    if (!Validator.isValidInputValue(email)) {
       return res
         .status(400)
         .send({ status: false, message: "email address is required" });
     }
 
-    if (!isValidEmail(email)) {
+    if (!Validator.isValidEmail(email)) {
       return res.status(400).send({
         status: false,
         message: "Please enter a valid email address like : xyz@gmail.com",
@@ -110,13 +89,13 @@ const userRegistration = async function (req, res) {
 
     const uploadedProfilePictureUrl = await utility.uploadFile(image[0]);
 
-    if (!isValid(phone)) {
+    if (!Validator.isValidInputValue(phone)) {
       return res
         .status(400)
         .send({ status: false, message: "Phone number is required" });
     }
 
-    if (!isValidPhone(phone)) {
+    if (!Validator.isValidPhone(phone)) {
       return res.status(400).send({
         status: false,
         message: "Please enter a valid phone number like : 9638527410",
@@ -131,13 +110,13 @@ const userRegistration = async function (req, res) {
         .send({ status: false, message: "phone number already exist" });
     }
 
-    if (!isValid(password)) {
+    if (!Validator.isValidInputValue(password)) {
       return res
         .status(400)
         .send({ status: false, message: "password is required" });
     }
 
-    if (!isValidPassword(password)) {
+    if (!Validator.isValidPassword(password)) {
       return res.status(400).send({
         status: false,
         message:
@@ -145,38 +124,47 @@ const userRegistration = async function (req, res) {
       });
     }
 
-   
-
-    if (!isValid(address)) {
-      return res
-        .status(400)
-        .send({ status: false, message: "address is required" });
-    } else {
+    if (address) {
       address = JSON.parse(address);
+      if (!Validator.isValidAddress(address)) {
+        return res
+          .status(400)
+          .send({ status: false, message: "Invalid address" });
+      }
+
       const { shipping, billing } = address;
 
-      if (!isValidAddress(shipping)) {
+      if (!Validator.isValidAddress(shipping)) {
         return res
           .status(400)
           .send({ status: false, message: "Shipping address is required" });
       } else {
         const { street, city, pincode } = shipping;
 
-        if (!isValid(street)) {
+        if (!Validator.isValidInputValue(street)) {
           return res.status(400).send({
             status: false,
             message: "Shipping address: street name is required ",
           });
         }
 
-        if (!isValid(city)) {
+        if (!Validator.isValidInputValue(city)) {
           return res.status(400).send({
             status: false,
             message: "Shipping address: city name is required ",
           });
         }
 
-        if (!/\d{6}/.test(pincode)) {
+        if (!Validator.isValidOnlyCharacters(city)) {
+          return res
+            .status(400)
+            .send({
+              status: false,
+              message: "Shipping address: only alphabets allowed in city",
+            });
+        }
+
+        if (!/^[1-9][0-9]{5}$/.test(pincode)) {
           return res.status(400).send({
             status: false,
             message: "Shipping address: pin code should be valid like: 335659 ",
@@ -184,34 +172,47 @@ const userRegistration = async function (req, res) {
         }
       }
 
-      if (!isValidAddress(billing)) {
+      if (!Validator.isValidAddress(billing)) {
         return res
           .status(400)
           .send({ status: false, message: "Billing address is required" });
       } else {
         const { street, city, pincode } = billing;
 
-        if (!isValid(street)) { 
+        if (!Validator.isValidInputValue(street)) {
           return res.status(400).send({
             status: false,
             message: "Billing address: street name is required ",
           });
         }
 
-        if (!isValid(city)) {
+        if (!Validator.isValidInputValue(city)) {
           return res.status(400).send({
             status: false,
             message: "Billing address: city name is required ",
           });
         }
 
-        if (!/\d{6}/.test(pincode)) {
+        if (!Validator.isValidOnlyCharacters(city)) {
+          return res
+            .status(400)
+            .send({
+              status: false,
+              message: "Billing address: Only alphabets allowed in city",
+            });
+        }
+
+        if (!Validator.isValidPincode(pincode)) {
           return res.status(400).send({
             status: false,
             message: "Billing address: pin code should be valid like: 335659 ",
           });
         }
       }
+    } else {
+      return res
+        .status(400)
+        .send({ status: false, message: "address is required" });
     }
 
     // password encryption
@@ -236,7 +237,6 @@ const userRegistration = async function (req, res) {
       data: newUser,
     });
   } catch (error) {
-    console.log(error);
     res.status(500).send({ error: error.message });
   }
 };
@@ -249,11 +249,11 @@ const userLogin = async function (req, res) {
     const requestBody = req.body;
 
     //no data is required from query params
-    if (isValidInput(queryParams)) {
+    if (Validator.isValidInputBody(queryParams)) {
       return res.status(404).send({ status: false, message: "Page not found" });
     }
 
-    if (!isValidInput(requestBody)) {
+    if (!Validator.isValidInputBody(requestBody)) {
       return res.status(400).send({
         status: false,
         message: "User data is required for login",
@@ -263,25 +263,25 @@ const userLogin = async function (req, res) {
     const userName = requestBody.email;
     const password = requestBody.password;
 
-    if (!isValid(userName)) {
+    if (!Validator.isValidInputValue(userName)) {
       return res
         .status(400)
         .send({ status: false, message: "email is required" });
     }
 
-    if (!isValidEmail(userName)) {
+    if (!Validator.isValidEmail(userName)) {
       return res
         .status(400)
         .send({ status: false, message: "Enter a valid email " });
     }
 
-    if (!isValid(password)) {
+    if (!Validator.isValidInputValue(password)) {
       return res
         .status(400)
         .send({ status: false, message: "password is required" });
     }
 
-    if (!isValidPassword(password)) {
+    if (!Validator.isValidPassword(password)) {
       return res.status(400).send({
         status: false,
         message:
@@ -297,13 +297,17 @@ const userLogin = async function (req, res) {
         .send({ status: false, message: "No user found by email" });
     }
     // comparing hashed password and login password
-    const isPasswordMatching = await bcrypt.compare(password, userDetails.password);
-  
+    const isPasswordMatching = await bcrypt.compare(
+      password,
+      userDetails.password
+    );
+
     if (!isPasswordMatching) {
       return res
         .status(400)
         .send({ status: false, message: "incorrect password" });
     }
+
     // creating JWT token
     const payload = { userId: userDetails._id };
     const expiry = { expiresIn: "1800s" };
@@ -319,13 +323,12 @@ const userLogin = async function (req, res) {
     res
       .status(200)
       .send({ status: true, message: "login successful", data: data });
-
   } catch (error) {
     res.status(500).send({ error: error.message });
   }
 };
 
-//********************************************USER PROFILE DETAILS***************************************** */
+//********************************************GET USER PROFILE DETAILS***************************************** */
 
 const profileDetails = async function (req, res) {
   try {
@@ -334,11 +337,11 @@ const profileDetails = async function (req, res) {
     const userId = req.params.userId;
 
     //no data is required from query params
-    if (isValidInput(queryParams)) {
+    if (Validator.isValidInputBody(queryParams)) {
       return res.status(404).send({ status: false, message: "Page not found" });
     }
 
-    if (isValidInput(requestBody)) {
+    if (Validator.isValidInputBody(requestBody)) {
       return res.status(400).send({
         status: false,
         message: "User data is not required",
@@ -357,7 +360,7 @@ const profileDetails = async function (req, res) {
   }
 };
 
-//*******************************************************USER PROFILE UPDATE******************************************************/
+//***********************************************UPDATE USER PROFILE DETAILS*****************************************/
 
 const userProfileUpdate = async function (req, res) {
   try {
@@ -369,7 +372,7 @@ const userProfileUpdate = async function (req, res) {
     const image = req.files;
 
     //no data is required from query params
-    if (isValidInput(queryParams)) {
+    if (Validator.isValidInputBody(queryParams)) {
       return res.status(404).send({ status: false, message: "Page not found" });
     }
 
@@ -382,173 +385,247 @@ const userProfileUpdate = async function (req, res) {
     }
 
     // using destructuring then validating keys which are present in request body then adding them to updates object
-    const { fname, lname, email, phone, address, password } = requestBody;
+    let { fname, lname, email, phone, address, password } = requestBody;
 
     if (requestBody.hasOwnProperty("fname")) {
-      if (isValid(fname)) {
-        updates["fname"] = fname.trim();
-      } else {
+      if (!Validator.isValidInputValue(fname)) {
         return res.status(400).send({
           status: false,
           message: "first name should be in valid format",
         });
       }
+
+      if (!Validator.isValidOnlyCharacters(fname)) {
+        return res.status(400).send({
+          status: false,
+          message: "Only alphabets allowed in first name",
+        });
+      }
+      updates["fname"] = fname.trim();
     }
 
     if (requestBody.hasOwnProperty("lname")) {
-      if (isValid(lname)) {
-        updates["lname"] = lname.trim();
-      } else {
-        return res
-          .status(400)
-          .send({ status: false, message: "last name should be in valid format" });
+      if (!Validator.isValidInputValue(lname)) {
+        return res.status(400).send({
+          status: false,
+          message: "Last name should be in valid format",
+        });
       }
+
+      if (!Validator.isValidOnlyCharacters(lname)) {
+        return res.status(400).send({
+          status: false,
+          message: "Only alphabets allowed in last name",
+        });
+      }
+      updates["lname"] = lname.trim();
     }
 
     if (requestBody.hasOwnProperty("email")) {
-      if (isValid(email)) {
-        if (isValidEmail(email)) {
-          const isUniqueEmail = await UserModel.findOne({ email });
-
-          if (isUniqueEmail) {
-            return res
-              .status(400)
-              .send({ status: false, message: "Email address already exist" });
-          }
-          updates["email"] = email.trim();
-        } else {
-          return res
-            .status(400)
-            .send({ status: false, message: "invalid email" });
-        }
-      } else {
+      if (!Validator.isValidInputValue(email)) {
         return res
           .status(400)
           .send({ status: false, message: "email should be in valid format" });
       }
+
+      if (!Validator.isValidEmail(email)) {
+        return res
+          .status(400)
+          .send({ status: false, message: "invalid email" });
+      }
+
+      const isUniqueEmail = await UserModel.findOne({ email });
+
+      if (isUniqueEmail) {
+        return res
+          .status(400)
+          .send({ status: false, message: "Email address already exist" });
+      }
+      updates["email"] = email.trim();
     }
 
     if (requestBody.hasOwnProperty("phone")) {
-      if (isValid(phone)) {
-        if (isValidPhone(phone)) {
-          const isUniquePhone = await UserModel.findOne({ phone });
-
-          if (isUniquePhone) {
-            return res
-              .status(400)
-              .send({ status: false, message: "phone number already exist" });
-          }
-          updates["phone"] = phone.trim();
-        } else {
-          return res
-            .status(400)
-            .send({ status: false, message: "invalid phone" });
-        }
-      } else {
+      if (!Validator.isValidInputValue(phone)) {
         return res
           .status(400)
-          .send({ status: false, message: "phone should be in valid format" });
+          .send({
+            status: false,
+            message: "phone number should be in valid format",
+          });
       }
+
+      if (!Validator.isValidPhone(phone)) {
+        return res
+          .status(400)
+          .send({ status: false, message: "invalid phone number" });
+      }
+
+      const isUniquePhone = await UserModel.findOne({ phone });
+
+      if (isUniquePhone) {
+        return res
+          .status(400)
+          .send({ status: false, message: "phone number already exist" });
+      }
+      updates["phone"] = phone.trim();
     }
 
     if (requestBody.hasOwnProperty("password")) {
-      if (isValid(password)) {
-        if (isValidPassword(password)) {
-          const salt = await bcrypt.genSalt(10);
-          const encryptedPassword = await bcrypt.hash(password, salt);
-
-          updates["password"] = encryptedPassword;
-        } else {
-          return res.status(400).send({
-            status: false,
-            message:
-              "Password should be of 8 to 15 characters and  must have 1 letter and 1 number",
-          });
-        }
-      } else {
+      if (!Validator.isValidInputValue(password)) {
         return res
           .status(400)
-          .send({ status: false, message: "password should be in valid format" });
+          .send({
+            status: false,
+            message: "password should be in valid format",
+          });
       }
+
+      if (!Validator.isValidPassword(password)) {
+        return res.status(400).send({
+          status: false,
+          message:
+            "Password should be of 8 to 15 characters and  must have 1 letter and 1 number",
+        });
+      }
+
+      const userDetails = await UserModel.findById(userId);
+
+      const isOldPassword = await bcrypt.compare(
+        password,
+        userDetails.password
+      );
+
+      if (isOldPassword) {
+        return res
+          .status(400)
+          .send({ status: false, message: "can not update same password" });
+      }
+
+      const salt = await bcrypt.genSalt(10);
+      const encryptedPassword = await bcrypt.hash(password, salt);
+
+      updates["password"] = encryptedPassword;
     }
 
     if (requestBody.hasOwnProperty("address")) {
-      const { shipping, billing } = JSON.parse(address);
+      if (!Validator.isValidInputValue(address)) {
+        return res.status(400).send({
+          status: false,
+          message: "Address should be in valid format ",
+        });
+      }
+      address = JSON.parse(address);
 
-      if (JSON.parse(address).hasOwnProperty("shipping")) {
+      if (!Validator.isValidAddress(address)) {
+        return res.status(400).send({
+          status: false,
+          message: "Address should be in valid format ",
+        });
+      }
+
+      const { shipping, billing } = address;
+
+      if (address.hasOwnProperty("shipping")) {
+        if (!Validator.isValidAddress(shipping)) {
+          return res.status(400).send({
+            status: false,
+            message: "Shipping address should be in valid format ",
+          });
+        }
+
         const { street, city, pincode } = shipping;
 
         if (shipping.hasOwnProperty("street")) {
-          if (!isValid(street)) {
+          if (!Validator.isValidInputValue(street)) {
             return res.status(400).send({
               status: false,
               message:
                 "shipping address: street name should be in valid format ",
             });
-          } else {
-            updates["address.shipping.street"] = street.trim();
           }
+          updates["address.shipping.street"] = street.trim();
         }
 
         if (shipping.hasOwnProperty("city")) {
-          if (!isValid(city)) {
+          if (!Validator.isValidInputValue(city)) {
             return res.status(400).send({
               status: false,
               message: "shipping address: city name should be in valid format ",
             });
-          } else {
-            updates["address.shipping.city"] = city.trim();
           }
+
+          if (!Validator.isValidOnlyCharacters(city)) {
+            return res.status(400).send({
+              status: false,
+              message:
+                "shipping address: only alphabets are allowed in city name ",
+            });
+          }
+
+          updates["address.shipping.city"] = city.trim();
         }
 
         if (shipping.hasOwnProperty("pincode")) {
-          if (!/\d{6}/.test(pincode)) {
+          if (!Validator.isValidPincode(pincode)) {
             return res.status(400).send({
               status: false,
               message:
                 "Shipping address: pin code should be valid like: 335659 ",
             });
           }
-          updates["address.shipping.pincode"] = pincode
+          updates["address.shipping.pincode"] = pincode;
         }
       }
 
-      if (JSON.parse(address).hasOwnProperty("billing")) {
+      if (address.hasOwnProperty("billing")) {
+        if (!Validator.isValidAddress(billing)) {
+          return res.status(400).send({
+            status: false,
+            message: "billing address should be in valid format ",
+          });
+        }
+
         const { street, city, pincode } = billing;
 
         if (billing.hasOwnProperty("street")) {
-          if (!isValid(street)) {
+          if (!Validator.isValidInputValue(street)) {
             return res.status(400).send({
               status: false,
               message:
                 "billing address: street name should be in valid format ",
             });
-          } else {
-            updates["address.billing.street"] = street.trim();
           }
+          updates["address.billing.street"] = street.trim();
         }
 
         if (billing.hasOwnProperty("city")) {
-          if (!isValid(city)) {
+          if (!Validator.isValidInputValue(city)) {
             return res.status(400).send({
               status: false,
               message: "billing address: city name should be in valid format ",
             });
-          } else {
-            updates["address.billing.city"] = city.trim();
           }
-        }
 
-        if (billing.hasOwnProperty("pincode")) {
-          if (!/\d{6}/.test(pincode)) {
+          if (!Validator.isValidOnlyCharacters(city)) {
             return res.status(400).send({
               status: false,
               message:
-                "Billing address: pin code should be valid like: 335659 ",
+                "billing address: only alphabets are allowed in city name ",
             });
           }
 
-          updates["address.billing.pincode"] = pincode
+          updates["address.billing.city"] = city.trim();
+        }
+
+        if (billing.hasOwnProperty("pincode")) {
+          if (!Validator.isValidPincode(pincode)) {
+            return res.status(400).send({
+              status: false,
+              message:
+                "billing address: pin code should be valid like: 335659 ",
+            });
+          }
+          updates["address.billing.pincode"] = pincode;
         }
       }
     }
@@ -568,6 +645,9 @@ const userProfileUpdate = async function (req, res) {
     res.status(500).send({ error: error.message });
   }
 };
+
+//*******************************************EXPORTING ALL HANDLERS OF USER************************************** */
+
 module.exports = {
   userRegistration,
   userLogin,
